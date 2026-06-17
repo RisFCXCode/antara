@@ -11,6 +11,38 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const bot = new Telegraf(botToken);
 
+import { generatePdfBuffer } from './pdf-generator';
+
+function calculateUnitPrice(qty: number): number {
+  if (qty >= 100) return 40;
+  if (qty >= 50) return 45;
+  return 50;
+}
+
+function recalculateTotals(data: any) {
+  let sub = 0;
+  for (const item of (data.items || [])) {
+    sub += item.total || 0;
+  }
+  data.subtotal = sub;
+
+  let disc = 0;
+  if (data.discount_type === 'percentage') {
+    disc = sub * ((data.discount_value || 0) / 100);
+  } else if (data.discount_type === 'fixed') {
+    disc = data.discount_value || 0;
+  }
+  data.discount_amount = disc;
+  data.total = Math.max(0, sub - disc);
+}
+
+function generateReferenceId(status: string) {
+  const prefix = status === 'paid' ? 'REC' : 'INV';
+  const timestamp = Date.now().toString().slice(-6);
+  const randomStr = Math.random().toString(36).substring(2, 5).toUpperCase();
+  return `${prefix}-${timestamp}-${randomStr}`;
+}
+
 // Helper to manage session state in Supabase
 async function getSession(chatId: number) {
   const { data, error } = await supabase.from('bot_sessions').select('*').eq('id', chatId).single();
@@ -132,6 +164,62 @@ bot.on('text', async (ctx) => {
       ]));
       break;
       
+    case 'awaiting_quantity':
+      const qty = parseFloat(text);
+      if (isNaN(qty) || qty <= 0) return ctx.reply('❌ Invalid quantity. Please enter a number greater than 0.');
+      
+      const price = calculateUnitPrice(qty);
+      if (!data.items) data.items = [];
+      data.items.push({
+        fabric_type: session.tempFabric || 'Unknown',
+        pattern_name: '',
+        quantity_meters: qty,
+        price_per_meter: price,
+        total: qty * price
+      });
+      recalculateTotals(data);
+      
+      session.step = 'awaiting_more_fabric';
+      await saveSession(ctx.chat.id, session);
+      await ctx.reply(
+        `📊 Current Subtotal: RM ${data.subtotal?.toFixed(2)}\nWould you like to add another fabric?`,
+        Markup.inlineKeyboard([
+          Markup.button.callback('Yes, add more', 'add_fabric'),
+          Markup.button.callback('No, proceed to discount', 'proceed_discount')
+        ])
+      );
+      break;
+
+    case 'awaiting_discount_val':
+      const val = parseFloat(text);
+      if (isNaN(val) || val < 0) return ctx.reply('❌ Invalid value. Please enter a positive number.');
+      if (data.discount_type === 'fixed' && val >= (data.subtotal || 0)) return ctx.reply('❌ Discount cannot exceed the total amount.');
+      if (data.discount_type === 'percentage' && val > 100) return ctx.reply('❌ Discount percentage cannot exceed 100.');
+      
+      data.discount_value = val;
+      recalculateTotals(data);
+      
+      session.step = 'awaiting_confirmation';
+      await saveSession(ctx.chat.id, session);
+      
+      const summaryText = `
+─────────────────────
+📊 Final Summary
+─────────────────────
+👤 Customer:  ${data.customer_name}
+📞 Phone:     ${data.customer_phone}
+📄 Type:      ${data.status === 'paid' ? 'Receipt' : 'Invoice'}
+💰 Subtotal:  RM ${data.subtotal?.toFixed(2)}
+📉 Discount:  - RM ${data.discount_amount?.toFixed(2)}
+✅ Total:     RM ${data.total?.toFixed(2)}
+─────────────────────
+Please confirm your order details:`;
+      await ctx.reply(summaryText, Markup.inlineKeyboard([
+        Markup.button.callback('✅ Confirm', 'confirm_order'),
+        Markup.button.callback('✏️ Edit', 'edit_order')
+      ]));
+      break;
+      
     case 'awaiting_doc_type':
       break;
   }
@@ -144,22 +232,138 @@ bot.on('callback_query', async (ctx) => {
   
   const cbQuery = ctx.callbackQuery as any;
   const action = cbQuery.data;
+  const data = session.data;
 
+  // Document Type
   if (action === 'type_pending' || action === 'type_paid') {
-    const status = action === 'type_pending' ? 'pending' : 'paid';
+    data.status = action === 'type_paid' ? 'paid' : 'pending';
+    session.step = 'awaiting_fabric';
+    await saveSession(ctx.chat.id, session);
+    await ctx.editMessageText('Select fabric type:', Markup.inlineKeyboard([
+      Markup.button.callback('Dubai Cotton', 'fabric_dubai'),
+      Markup.button.callback('Cotton Viscose', 'fabric_viscose')
+    ]));
+    return;
+  }
+
+  // Fabric Type
+  if (action.startsWith('fabric_')) {
+    session.tempFabric = action === 'fabric_dubai' ? 'Dubai Cotton' : 'Cotton Viscose';
+    session.step = 'awaiting_quantity';
+    await saveSession(ctx.chat.id, session);
+    await ctx.editMessageText(`You selected ${session.tempFabric}.\nHow many meters?`);
+    return;
+  }
+  
+  // Add More Fabric
+  if (action === 'add_fabric') {
+    session.step = 'awaiting_fabric';
+    await saveSession(ctx.chat.id, session);
+    await ctx.editMessageText('Select next fabric type:', Markup.inlineKeyboard([
+      Markup.button.callback('Dubai Cotton', 'fabric_dubai'),
+      Markup.button.callback('Cotton Viscose', 'fabric_viscose')
+    ]));
+    return;
+  }
+
+  // Proceed to Discount
+  if (action === 'proceed_discount') {
+    session.step = 'awaiting_discount_type';
+    await saveSession(ctx.chat.id, session);
+    await ctx.editMessageText('Apply an adjustment?', Markup.inlineKeyboard([
+      Markup.button.callback('% Discount', 'disc_percent'),
+      Markup.button.callback('RM Discount', 'disc_fixed'),
+      Markup.button.callback('No Discount', 'disc_none')
+    ]));
+    return;
+  }
+
+  // Discount Options
+  if (action.startsWith('disc_')) {
+    if (action === 'disc_none') {
+      data.discount_type = 'none';
+      recalculateTotals(data);
+      session.step = 'awaiting_confirmation';
+      await saveSession(ctx.chat.id, session);
+      
+      const summaryText = `
+─────────────────────
+📊 Final Summary
+─────────────────────
+👤 Customer:  ${data.customer_name}
+📞 Phone:     ${data.customer_phone}
+📄 Type:      ${data.status === 'paid' ? 'Receipt' : 'Invoice'}
+💰 Subtotal:  RM ${data.subtotal?.toFixed(2)}
+📉 Discount:  - RM ${data.discount_amount?.toFixed(2)}
+✅ Total:     RM ${data.total?.toFixed(2)}
+─────────────────────
+Please confirm your order details:`;
+      await ctx.editMessageText(summaryText, Markup.inlineKeyboard([
+        Markup.button.callback('✅ Confirm', 'confirm_order'),
+        Markup.button.callback('✏️ Edit', 'edit_order')
+      ]));
+    } else {
+      data.discount_type = action === 'disc_percent' ? 'percentage' : 'fixed';
+      session.step = 'awaiting_discount_val';
+      await saveSession(ctx.chat.id, session);
+      await ctx.editMessageText(`Enter ${data.discount_type} discount value (e.g. 10):`);
+    }
+    return;
+  }
+
+  // Confirmation
+  if (action === 'confirm_order') {
+    await ctx.editMessageText(
+      '🎨 *Choose your PDF theme:*\n\n' +
+      '• *Normal* — Dark luxury, liquid glass, branded Antara Batik style\n' +
+      '• *White* — Clean corporate, minimal, print-optimised',
+      {
+        parse_mode: 'Markdown',
+        ...Markup.inlineKeyboard([
+          Markup.button.callback('🌙 Normal (Dark)', 'theme_normal'),
+          Markup.button.callback('☀️ White (Corporate)', 'theme_white'),
+        ])
+      }
+    );
+  } else if (action === 'theme_normal' || action === 'theme_white') {
+    const theme = action === 'theme_normal' ? 'normal' : 'white';
+    await ctx.editMessageText('⏳ Generating your PDF in the Cloud... (This takes about 5 seconds)');
     
     // Finalize invoice and push to Supabase
     const newInvoice = {
-      id: `INV-${Date.now()}`,
-      ...session.data,
-      status: status,
+      id: generateReferenceId(data.status),
+      ...data,
       created_at: new Date().toISOString()
     };
+    newInvoice.updated_at = newInvoice.created_at;
     
+    // Save to Database
     await supabase.from('invoices').insert(newInvoice);
-    await clearSession(ctx.chat.id);
     
-    await ctx.editMessageText(`✅ Document finalized and saved to Cloud Database!\n\nID: ${newInvoice.id}\nCustomer: ${newInvoice.customer_name}\n\nWeb Link: https://example.com/view/${newInvoice.id}`);
+    // Generate PDF via Sparticuz Chromium
+    try {
+      const pdfBuffer = await generatePdfBuffer(newInvoice as any, theme);
+      const themeLabel = theme === 'white' ? '☀️ White' : '🌙 Normal';
+      
+      await ctx.reply(
+        `✅ Done! Here is your ${newInvoice.status === 'paid' ? 'Receipt' : 'Invoice'} ${newInvoice.id}\n` +
+        `📄 Theme: ${themeLabel}`
+      );
+      
+      await ctx.replyWithDocument({
+        source: pdfBuffer,
+        filename: `${newInvoice.id}.pdf`
+      });
+      
+      await clearSession(ctx.chat.id);
+    } catch (err: any) {
+      await ctx.reply(`⚠️ Failed to generate PDF: ${err.message}`);
+    }
+
+  } else if (action === 'edit_order') {
+    session.step = 'awaiting_name';
+    await saveSession(ctx.chat.id, session);
+    await ctx.editMessageText('Let us start over. What is the customer name?');
   }
 });
 
