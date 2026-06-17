@@ -12,6 +12,7 @@ const fonts = {
     bolditalics: 'Helvetica-BoldOblique'
   }
 };
+PdfPrinter.setFonts(fonts);
 
 export async function generatePdfBuffer(
   invoice: BatikInvoice,
@@ -140,18 +141,6 @@ export async function generatePdfBuffer(
     ]
   };
 
-  const printer = new PdfPrinter(fonts);
-  
-  return new Promise((resolve, reject) => {
-    try {
-      const pdfDoc = printer.createPdfKitDocument(docDefinition);
-      const chunks: Buffer[] = [];
-      pdfDoc.on('data', (chunk) => chunks.push(chunk));
-      pdfDoc.on('end', () => resolve(Buffer.concat(chunks)));
-      pdfDoc.on('error', (err) => reject(err));
-      pdfDoc.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
+  const pdfDoc = PdfPrinter.createPdf(docDefinition);
+  return await pdfDoc.getBuffer();
 }
