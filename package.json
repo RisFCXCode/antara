@@ -5,6 +5,9 @@
   "description": "Antara Batik Business Management System",
   "main": ".vite/build/main.js",
   "private": true,
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
