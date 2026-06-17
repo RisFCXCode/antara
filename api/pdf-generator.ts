@@ -567,7 +567,7 @@ export async function generatePdfBuffer(
   // Use remote tarball download for Vercel Hobby limits
   // This downloads the 50MB Chromium binary at runtime into /tmp to bypass the deployment bundle limit!
   const executablePath = await chromium.executablePath(
-    'https://github.com/Sparticuz/chromium/releases/download/v121.0.0/chromium-v121.0.0-pack.tar'
+    'https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar'
   );
 
   const browser = await puppeteer.launch({
