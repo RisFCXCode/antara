@@ -1,4 +1,4 @@
-import PdfPrinter from 'pdfmake';
+const PdfPrinter = require('pdfmake');
 import { BatikInvoice } from '../src/db/database';
 
 type PdfTheme = 'normal' | 'white';
