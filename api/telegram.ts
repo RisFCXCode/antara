@@ -338,6 +338,7 @@ Please confirm your order details:`;
       ...data,
       created_at: new Date().toISOString()
     };
+    delete newInvoice.tempFabric;
     
     // Save to Database
     const { error: insertError } = await supabase.from('invoices').insert(newInvoice);
