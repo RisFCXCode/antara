@@ -6,7 +6,7 @@
   "main": ".vite/build/main.js",
   "private": true,
   "engines": {
-    "node": "18.x"
+    "node": "24.x"
   },
   "scripts": {
     "start": "electron-forge start",

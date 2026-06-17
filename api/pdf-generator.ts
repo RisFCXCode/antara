@@ -566,11 +566,8 @@ export async function generatePdfBuffer(
   // Dynamically import pure ESM module to avoid Vercel CommonJS transpilation crash
   const puppeteer = (await import('puppeteer-core')).default;
 
-  // Use remote tarball download for Vercel Hobby limits
-  // This downloads the 50MB Chromium binary at runtime into /tmp to bypass the deployment bundle limit!
-  const executablePath = await chromium.executablePath(
-    'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.tar'
-  );
+  // Use the pre-bundled AWS Lambda binary instead of downloading it
+  const executablePath = await chromium.executablePath();
 
   const browser = await puppeteer.launch({
     args: chromium.args,
