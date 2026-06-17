@@ -13,6 +13,8 @@ const bot = new Telegraf(botToken);
 
 import { generatePdfBuffer } from './pdf-generator';
 
+export const maxDuration = 60; // Set max duration for Vercel Hobby tier
+
 function calculateUnitPrice(qty: number): number {
   if (qty >= 1000) return 35;
   if (qty >= 500) return 37;
@@ -336,10 +338,12 @@ Please confirm your order details:`;
       ...data,
       created_at: new Date().toISOString()
     };
-    newInvoice.updated_at = newInvoice.created_at;
     
     // Save to Database
-    await supabase.from('invoices').insert(newInvoice);
+    const { error: insertError } = await supabase.from('invoices').insert(newInvoice);
+    if (insertError) {
+      throw new Error(`Invoice Insert Error: ${insertError.message}`);
+    }
     
     // Generate PDF via Sparticuz Chromium
     try {
