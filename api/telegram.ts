@@ -144,14 +144,16 @@ bot.on('text', async (ctx) => {
       break;
 
     case 'awaiting_billing':
-      data.billing_address = text.trim();
+      data.customer_address = text.trim();
       session.step = 'awaiting_delivery';
       await saveSession(ctx.chat.id, session);
       await ctx.reply('📦 Delivery address?\n(Type "same" to use billing address)');
       break;
 
     case 'awaiting_delivery':
-      data.delivery_address = text.toLowerCase().trim() === 'same' ? data.billing_address : text.trim();
+      if (text.toLowerCase().trim() !== 'same') {
+        data.customer_address = `Billing:\n${data.customer_address}\n\nDelivery:\n${text.trim()}`;
+      }
       session.step = 'awaiting_email';
       await saveSession(ctx.chat.id, session);
       await ctx.reply('📧 Email address? (Type "skip" if none)');

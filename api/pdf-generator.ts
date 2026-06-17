@@ -34,6 +34,9 @@ function prepareInvoiceData(invoice: BatikInvoice) {
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THEME: NORMAL — Dark luxury / liquid-glass branded aesthetic
+// ─────────────────────────────────────────────────────────────────────────────
 function buildNormalThemeHtml(invoice: BatikInvoice): string {
   const d = prepareInvoiceData(invoice);
 
@@ -42,6 +45,7 @@ function buildNormalThemeHtml(invoice: BatikInvoice): string {
       <td class="col-desc">
         <span class="fabric-type">${item.fabric_type}</span>
         ${item.pattern_name ? `<span class="pattern-name">${item.pattern_name}</span>` : ''}
+        ${item.size_breakdown && item.size_breakdown.length > 0 ? `<div style="font-size: 9.5px; color: #a9a49f; margin-top: 4px;">Size: ${item.size_breakdown.map(s => `${s.toFixed(1)}m`).join(' + ')}</div>` : ''}
       </td>
       <td class="col-qty">${(item.quantity_meters || 0).toFixed(1)} m</td>
       <td class="col-price">RM ${(item.price_per_meter || 0).toFixed(2)}</td>
@@ -140,7 +144,7 @@ function buildNormalThemeHtml(invoice: BatikInvoice): string {
     .col-qty { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: #ffffff; }
     .col-price { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; color: #d4cfc9; }
     .col-total { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11.5px; font-weight: 600; color: #cfab6d; text-align: right; }
-    th:last-child { text-align: right; }
+    th.total-hdr, td.col-total { text-align: right; }
     .totals-section { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; }
     .notes-container {
       width: 50%;
@@ -161,6 +165,7 @@ function buildNormalThemeHtml(invoice: BatikInvoice): string {
     .sum-label.grand { font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; color: #cfab6d; }
     .sum-value.grand { font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 700; color: #cfab6d; }
     .footer-section { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 35px; text-align: center; }
+    .footer-left { font-family: 'Outfit', sans-serif; font-size: 10px; color: #d4cfc9; opacity: 0.45; line-height: 1.8; }
     .footer-left { font-family: 'Outfit', sans-serif; font-size: 10px; color: #d4cfc9; opacity: 0.45; line-height: 1.8; }
   </style>
 </head>
@@ -258,6 +263,9 @@ function buildNormalThemeHtml(invoice: BatikInvoice): string {
 </html>`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THEME: WHITE — Clean corporate / minimal professional invoice
+// ─────────────────────────────────────────────────────────────────────────────
 function buildWhiteThemeHtml(invoice: BatikInvoice): string {
   const d = prepareInvoiceData(invoice);
 
@@ -266,6 +274,7 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
       <td class="td-desc">
         <strong>${item.fabric_type}</strong>
         ${item.pattern_name ? `<br/><span class="pattern-sub">${item.pattern_name}</span>` : ''}
+        ${item.size_breakdown && item.size_breakdown.length > 0 ? `<div style="font-size: 10px; color: #666; margin-top: 4px;">Size: ${item.size_breakdown.map(s => `${s.toFixed(1)}m`).join(' + ')}</div>` : ''}
       </td>
       <td class="td-num">${(item.quantity_meters || 0).toFixed(1)} m</td>
       <td class="td-num">RM ${(item.price_per_meter || 0).toFixed(2)}</td>
@@ -299,6 +308,8 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
       line-height: 1.6;
       -webkit-print-color-adjust: exact;
     }
+
+    /* ─── Header ─── */
     .header {
       display: flex;
       justify-content: space-between;
@@ -348,6 +359,8 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
     .meta-table td { padding: 2px 0 2px 20px; color: #333; }
     .meta-table .ml { font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; padding-left: 0; }
     .status-text { font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
+
+    /* ─── Bill / Pay grid ─── */
     .address-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -367,6 +380,8 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
     .address-name { font-size: 12px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
     .address-body { font-size: 10px; color: #555; line-height: 1.7; }
     .address-body strong { color: #333; }
+
+    /* ─── Line items table ─── */
     table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
     .table-wrap { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; margin-bottom: 28px; }
     thead tr { background: #f5f5f5; }
@@ -388,6 +403,8 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
     .td-num { font-size: 11px; font-variant-numeric: tabular-nums; }
     .td-right { text-align: right; font-weight: 600; color: #1a1a2e; }
     th:last-child { text-align: right; }
+
+    /* ─── Totals block ─── */
     .totals-area {
       display: flex;
       justify-content: space-between;
@@ -420,6 +437,23 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
     .grand-row td { padding: 10px 10px; border-top: 2px solid #1a1a2e; margin-top: 4px; }
     .grand-label { font-size: 13px; font-weight: 700; color: #1a1a2e; }
     .grand-val { font-size: 15px; font-weight: 700; color: #1a1a2e; text-align: right; font-variant-numeric: tabular-nums; }
+
+    /* ─── Signature / stamp area ─── */
+    .sig-area {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 36px;
+    }
+    .sig-box {
+      border-top: 1px solid #ccc;
+      padding-top: 8px;
+      font-size: 9px;
+      color: #888;
+      letter-spacing: 0.05em;
+    }
+
+    /* ─── Footer ─── */
     .footer {
       border-top: 1px solid #e0e0e0;
       padding-top: 20px;
@@ -429,6 +463,8 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
       line-height: 1.8;
     }
     .footer strong { color: #888; }
+
+    /* ─── Watermark for receipts ─── */
     .receipt-watermark {
       position: fixed;
       top: 50%;
@@ -455,20 +491,24 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
       <div class="brand-reg">Antara Studio (NS0322739-K)</div>
       <div class="brand-contact">
         No. 6, Jalan Wangsa Perdana 1, 53300 Kuala Lumpur<br/>
-        Tel: +6019-988 7272 | +6011-6179 9873
+        Tel: +6019-988 7272 &nbsp;|&nbsp; +6011-6179 9873
       </div>
     </div>
     <div class="doc-col">
-      <div class="doc-type-label">${d.documentTitle}</div>
-      <div class="doc-title">${d.documentId}</div>
+      <div class="doc-type-label">Document</div>
+      <div class="doc-title">${d.documentTitle}</div>
       <table class="meta-table">
+        <tr>
+          <td class="ml">Document ID</td>
+          <td>${d.documentId}</td>
+        </tr>
         <tr>
           <td class="ml">Date</td>
           <td>${d.dateStr}</td>
         </tr>
         <tr>
           <td class="ml">Status</td>
-          <td class="status-text" style="color: ${d.isReceipt ? '#2e7d32' : '#c62828'}">${d.statusStr}</td>
+          <td class="status-text">${d.statusStr}</td>
         </tr>
       </table>
     </div>
@@ -476,7 +516,7 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
 
   <div class="address-grid">
     <div class="address-block">
-      <h4>Billed To</h4>
+      <h4>Bill To</h4>
       <div class="address-name">${invoice.customer_name}</div>
       <div class="address-body">
         ${invoice.customer_address ? invoice.customer_address.replace(/\n/g, '<br/>') : 'No address provided.'}<br/><br/>
@@ -485,15 +525,15 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
       </div>
     </div>
     <div class="address-block">
-      <h4>Payment &amp; Terms</h4>
+      <h4>Payment Details</h4>
       <div class="address-body">
         <strong>Method:</strong> Bank Transfer / FPX Direct<br/>
-        <strong>Banker:</strong> Hong Leong Bank<br/>
+        <strong>Bank:</strong> Hong Leong Bank<br/>
         <strong>Account No:</strong> 39501284728<br/>
         <strong>Account Name:</strong> Antara Studio<br/><br/>
         ${d.isReceipt
-          ? 'Thank you for your business! Payment has been successfully verified and completed.'
-          : '<strong>Due Date:</strong> Net 7 Days from Invoice Date.'}
+          ? '<strong>Note:</strong> Payment successfully received and verified. Thank you.'
+          : '<strong>Due:</strong> Net 7 Days from Invoice Date.'}
       </div>
     </div>
   </div>
