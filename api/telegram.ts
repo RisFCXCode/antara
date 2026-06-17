@@ -53,13 +53,13 @@ async function getSession(chatId: number) {
 }
 
 async function saveSession(chatId: number, sessionData: any) {
-  const { data, error } = await supabase.from('bot_sessions')
-    .upsert({ id: chatId, ...sessionData, updated_at: new Date().toISOString() })
+  const { step, data } = sessionData;
+  const { error } = await supabase.from('bot_sessions')
+    .upsert({ id: chatId, step, data, updated_at: new Date().toISOString() })
     .select();
   if (error) {
     throw new Error(`DB Save Error: ${error.message}`);
   }
-  return data;
 }
 
 async function clearSession(chatId: number) {
@@ -171,7 +171,7 @@ bot.on('text', async (ctx) => {
       const price = calculateUnitPrice(qty);
       if (!data.items) data.items = [];
       data.items.push({
-        fabric_type: session.tempFabric || 'Unknown',
+        fabric_type: data.tempFabric || 'Unknown',
         pattern_name: '',
         quantity_meters: qty,
         price_per_meter: price,
@@ -248,10 +248,10 @@ bot.on('callback_query', async (ctx) => {
 
   // Fabric Type
   if (action.startsWith('fabric_')) {
-    session.tempFabric = action === 'fabric_dubai' ? 'Dubai Cotton' : 'Cotton Viscose';
+    data.tempFabric = action === 'fabric_dubai' ? 'Dubai Cotton' : 'Cotton Viscose';
     session.step = 'awaiting_quantity';
     await saveSession(ctx.chat.id, session);
-    await ctx.editMessageText(`You selected ${session.tempFabric}.\nHow many meters?`);
+    await ctx.editMessageText(`You selected ${data.tempFabric}.\nHow many meters?`);
     return;
   }
   
