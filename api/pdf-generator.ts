@@ -1,4 +1,3 @@
-import chromium from '@sparticuz/chromium';
 import { BatikInvoice } from '../src/db/database';
 
 export const maxDuration = 60; // Set max duration for Vercel Hobby tier
@@ -563,8 +562,9 @@ export async function generatePdfBuffer(
 ): Promise<Buffer> {
   const htmlContent = buildHtmlForTheme(invoice, theme);
   
-  // Dynamically import pure ESM module to avoid Vercel CommonJS transpilation crash
+  // Dynamically import pure ESM modules to avoid Vercel CommonJS transpilation crash
   const puppeteer = (await import('puppeteer-core')).default;
+  const chromium = (await import('@sparticuz/chromium')).default;
 
   // Use the pre-bundled AWS Lambda binary instead of downloading it
   const executablePath = await chromium.executablePath();
