@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
 import { BatikInvoice } from '../src/db/database';
 
@@ -564,10 +563,13 @@ export async function generatePdfBuffer(
 ): Promise<Buffer> {
   const htmlContent = buildHtmlForTheme(invoice, theme);
   
+  // Dynamically import pure ESM module to avoid Vercel CommonJS transpilation crash
+  const puppeteer = (await import('puppeteer-core')).default;
+
   // Use remote tarball download for Vercel Hobby limits
   // This downloads the 50MB Chromium binary at runtime into /tmp to bypass the deployment bundle limit!
   const executablePath = await chromium.executablePath(
-    'https://github.com/Sparticuz/chromium/releases/download/v119.0.2/chromium-v119.0.2-pack.tar'
+    'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.tar'
   );
 
   const browser = await puppeteer.launch({
