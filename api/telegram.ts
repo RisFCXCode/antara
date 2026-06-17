@@ -11,7 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const botToken = process.env.TELEGRAM_BOT_TOKEN || '';
 const bot = new Telegraf(botToken);
 
-import { generatePdfBuffer } from './pdf-generator';
+import { generatePdfBuffer } from './pdf-generator.js';
 
 export const maxDuration = 60; // Set max duration for Vercel Hobby tier
 
