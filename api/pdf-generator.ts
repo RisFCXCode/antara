@@ -1,13 +1,6 @@
-import { BatikInvoice } from '../src/db/database';
-
-// Dummy require to force Vercel to bundle the packages
-// Since it's inside if(false), it will never execute and throw ERR_REQUIRE_ESM
-if (false) {
-  require('puppeteer-core');
-  require('@sparticuz/chromium');
-}
-
-export const maxDuration = 60; // Set max duration for Vercel Hobby tier
+import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer-core';
+import { BatikInvoice } from '../src/db/types';
 
 export type PdfTheme = 'normal' | 'white';
 
@@ -569,13 +562,6 @@ export async function generatePdfBuffer(
 ): Promise<Buffer> {
   const htmlContent = buildHtmlForTheme(invoice, theme);
   
-  // Dynamically import pure ESM modules using a Function constructor
-  // This completely hides the import() from Vercel's Webpack/NCC compiler!
-  const dynamicImport = new Function('modulePath', 'return import(modulePath)');
-  const puppeteer = (await dynamicImport('puppeteer-core')).default;
-  const chromium = (await dynamicImport('@sparticuz/chromium')).default;
-
-  // Use the pre-bundled AWS Lambda binary instead of downloading it
   const executablePath = await chromium.executablePath();
 
   const browser = await puppeteer.launch({
