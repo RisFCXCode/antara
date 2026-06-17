@@ -562,9 +562,11 @@ export async function generatePdfBuffer(
 ): Promise<Buffer> {
   const htmlContent = buildHtmlForTheme(invoice, theme);
   
-  // Dynamically import pure ESM modules to avoid Vercel CommonJS transpilation crash
-  const puppeteer = (await import('puppeteer-core')).default;
-  const chromium = (await import('@sparticuz/chromium')).default;
+  // Dynamically import pure ESM modules using a Function constructor
+  // This completely hides the import() from Vercel's Webpack/NCC compiler!
+  const dynamicImport = new Function('modulePath', 'return import(modulePath)');
+  const puppeteer = (await dynamicImport('puppeteer-core')).default;
+  const chromium = (await dynamicImport('@sparticuz/chromium')).default;
 
   // Use the pre-bundled AWS Lambda binary instead of downloading it
   const executablePath = await chromium.executablePath();
