@@ -14,9 +14,7 @@ const bot = new Telegraf(botToken);
 import { generatePdfBuffer } from './pdf-generator';
 
 function calculateUnitPrice(qty: number): number {
-  if (qty >= 100) return 40;
-  if (qty >= 50) return 45;
-  return 50;
+  return 40;
 }
 
 function recalculateTotals(data: any) {
