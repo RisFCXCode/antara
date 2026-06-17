@@ -12,12 +12,20 @@ const bot = new Telegraf(botToken);
 
 // Helper to manage session state in Supabase
 async function getSession(chatId: number) {
-  const { data } = await supabase.from('bot_sessions').select('*').eq('id', chatId).single();
+  const { data, error } = await supabase.from('bot_sessions').select('*').eq('id', chatId).single();
+  if (error && error.code !== 'PGRST116') {
+    console.error('Supabase getSession Error:', error);
+    throw new Error(`DB Get Error: ${error.message}`);
+  }
   return data ? data : null;
 }
 
 async function saveSession(chatId: number, sessionData: any) {
-  await supabase.from('bot_sessions').upsert({ id: chatId, ...sessionData, updated_at: new Date().toISOString() });
+  const { error } = await supabase.from('bot_sessions').upsert({ id: chatId, ...sessionData, updated_at: new Date().toISOString() });
+  if (error) {
+    console.error('Supabase saveSession Error:', error);
+    throw new Error(`DB Save Error: ${error.message}`);
+  }
 }
 
 async function clearSession(chatId: number) {
@@ -145,8 +153,14 @@ export default async function handler(req: any, res: any) {
       if (!res.headersSent) {
         res.status(200).send('OK');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Webhook error:', error);
+      // Reply to telegram with the exact error so the user can see it
+      if (req.body && req.body.message && req.body.message.chat) {
+         try {
+           await bot.telegram.sendMessage(req.body.message.chat.id, `⚠️ System Error: ${error.message}`);
+         } catch(e) {}
+      }
       res.status(500).send('Internal Server Error');
     }
   } else {
