@@ -14,18 +14,19 @@ const bot = new Telegraf(botToken);
 async function getSession(chatId: number) {
   const { data, error } = await supabase.from('bot_sessions').select('*').eq('id', chatId).single();
   if (error && error.code !== 'PGRST116') {
-    console.error('Supabase getSession Error:', error);
     throw new Error(`DB Get Error: ${error.message}`);
   }
   return data ? data : null;
 }
 
 async function saveSession(chatId: number, sessionData: any) {
-  const { error } = await supabase.from('bot_sessions').upsert({ id: chatId, ...sessionData, updated_at: new Date().toISOString() });
+  const { data, error } = await supabase.from('bot_sessions')
+    .upsert({ id: chatId, ...sessionData, updated_at: new Date().toISOString() })
+    .select();
   if (error) {
-    console.error('Supabase saveSession Error:', error);
     throw new Error(`DB Save Error: ${error.message}`);
   }
+  return data;
 }
 
 async function clearSession(chatId: number) {
@@ -55,6 +56,27 @@ bot.command('cancel', async (ctx) => {
   if (!ctx.chat) return;
   await clearSession(ctx.chat.id);
   await ctx.reply("❌ Session cancelled. Type /new to start over.");
+});
+
+bot.command('debug', async (ctx) => {
+  if (!ctx.chat) return;
+  try {
+    const session = await getSession(ctx.chat.id);
+    if (!session) {
+      await ctx.reply(`🔧 Debug: No session found for ID ${ctx.chat.id} in Supabase.`);
+    } else {
+      await ctx.reply(`🔧 Debug Session: ${JSON.stringify(session, null, 2)}`);
+    }
+  } catch (err: any) {
+    await ctx.reply(`🔧 Debug Error: ${err.message}`);
+  }
+});
+
+bot.catch((err, ctx) => {
+  console.error('Telegraf Error:', err);
+  if (ctx && ctx.reply) {
+    ctx.reply(`⚠️ Internal Bot Error: ${String(err)}`).catch(() => {});
+  }
 });
 
 bot.on('text', async (ctx) => {
