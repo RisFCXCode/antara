@@ -1,4 +1,5 @@
 import { Telegraf, Context, Markup } from 'telegraf';
+// @ts-ignore
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase Client
