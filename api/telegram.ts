@@ -144,16 +144,14 @@ bot.on('text', async (ctx) => {
       break;
 
     case 'awaiting_billing':
-      data.customer_address = text.trim();
+      data.billing_address = text.trim();
       session.step = 'awaiting_delivery';
       await saveSession(ctx.chat.id, session);
       await ctx.reply('📦 Delivery address?\n(Type "same" to use billing address)');
       break;
 
     case 'awaiting_delivery':
-      if (text.toLowerCase().trim() !== 'same') {
-        data.customer_address = `Billing:\n${data.customer_address}\n\nDelivery:\n${text.trim()}`;
-      }
+      data.delivery_address = text.toLowerCase().trim() === 'same' ? data.billing_address : text.trim();
       session.step = 'awaiting_email';
       await saveSession(ctx.chat.id, session);
       await ctx.reply('📧 Email address? (Type "skip" if none)');
@@ -350,7 +348,15 @@ Please confirm your order details:`;
     
     // Generate PDF via Sparticuz Chromium
     try {
-      const pdfBuffer = await generatePdfBuffer(newInvoice as any, theme);
+      // Map Supabase fields to PDF template fields
+      const pdfInvoiceData = {
+        ...newInvoice,
+        customer_address: data.delivery_address && data.delivery_address !== data.billing_address
+          ? `Billing:\n${data.billing_address}\n\nDelivery:\n${data.delivery_address}`
+          : data.billing_address
+      };
+      
+      const pdfBuffer = await generatePdfBuffer(pdfInvoiceData as any, theme);
       const themeLabel = theme === 'white' ? '☀️ White' : '🌙 Normal';
       
       await ctx.reply(
