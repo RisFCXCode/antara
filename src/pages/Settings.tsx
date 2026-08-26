@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Building,
-  Target,
   Printer,
   ShieldAlert,
   Save,
@@ -11,7 +10,7 @@ import {
 } from 'lucide-react';
 import { AuditLog } from '../db/database';
 
-type Section = 'studio' | 'leads' | 'pdf' | 'audit';
+type Section = 'studio' | 'pdf' | 'audit';
 
 interface SectionItem {
   id: Section;
@@ -21,7 +20,6 @@ interface SectionItem {
 
 const SECTIONS: SectionItem[] = [
   { id: 'studio',    icon: Building, label: 'Studio Profile' },
-  { id: 'leads',     icon: Target, label: 'Lead Engine' },
   { id: 'pdf',       icon: Printer, label: 'Branded PDF Theme' },
   { id: 'audit',     icon: Activity, label: 'Operational Audit' },
 ];
@@ -165,15 +163,6 @@ export default function Settings() {
                   <input className="screenshot-input" defaultValue="Shah Alam, Selangor" />
                   <input className="screenshot-input" defaultValue="40000" maxLength={5} />
                 </div>
-              </div>
-            </SettingsSection>
-          )}
-
-          {section === 'leads' && (
-            <SettingsSection title="Lead Intelligence Engine" icon={Target} subtitle="Configure scraping intervals and API thresholds">
-              <div className="form-group">
-                <label className="form-label">Auto-Refresh Interval</label>
-                <input className="screenshot-input" defaultValue="30 Days" />
               </div>
             </SettingsSection>
           )}

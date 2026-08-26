@@ -5,7 +5,6 @@ import {
 import Dashboard from './pages/Dashboard';
 import Invoices from './pages/Invoices';
 import SalesTracking from './pages/SalesTracking';
-import LeadIntelligence from './pages/LeadIntelligence';
 import Inventory from './pages/Inventory';
 import Settings from './pages/Settings';
 
@@ -13,7 +12,6 @@ type Page =
   | 'dashboard'
   | 'invoices'
   | 'sales'
-  | 'leads'
   | 'inventory'
   | 'settings';
 
@@ -26,7 +24,6 @@ const TABS: NavItem[] = [
   { id: 'dashboard',  label: 'Dashboard' },
   { id: 'invoices',   label: 'Invoices & Receipts' },
   { id: 'sales',      label: 'Sales Tracking' },
-  { id: 'leads',      label: 'Lead Intelligence' },
   { id: 'inventory',  label: 'Inventory & Projects' },
   { id: 'settings',   label: 'System Settings' }
 ];
@@ -71,7 +68,6 @@ export default function App() {
       case 'dashboard':  return <Dashboard navigateTo={navigateTo} />;
       case 'invoices':   return <Invoices />;
       case 'sales':      return <SalesTracking />;
-      case 'leads':      return <LeadIntelligence />;
       case 'inventory':  return <Inventory />;
       case 'settings':   return <Settings />;
     }

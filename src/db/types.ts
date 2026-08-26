@@ -19,7 +19,8 @@ export interface BatikInvoice {
   discount_type: 'percentage' | 'fixed' | 'none';
   discount_value: number; // e.g. 10 for 10% or RM10
   discount_amount: number; // Calculated deduction
-  total: number; // subtotal - discount_amount
+  shipping_cost?: number; // Optional shipping cost
+  total: number; // subtotal - discount_amount + shipping_cost
   status: 'draft' | 'paid' | 'pending' | 'cancelled';
   created_at: string;
   pdf_path?: string;

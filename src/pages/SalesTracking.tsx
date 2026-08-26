@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   TrendingUp,
   Calendar,
@@ -13,6 +13,45 @@ import {
   Tag
 } from 'lucide-react';
 import { BatikInvoice, getPricePerMeter } from '../db/database';
+
+const COST_PER_METER = 24;
+const MONTHLY_PROFIT_GOAL = 15000;
+
+interface SalesItem {
+  id: string;
+  invoiceId: string;
+  customerName: string;
+  date: string;
+  fabricType: string;
+  patternName: string;
+  quantityMeters: number;
+  pricePerMeter: number;
+  itemTotal: number;
+  itemCost: number;
+  netProfit: number;
+  status: string;
+}
+
+interface MonthlySalesGroup {
+  key: string;
+  label: string;
+  totalSales: number;
+  totalMeters: number;
+  netProfit: number;
+  sales: SalesItem[];
+}
+
+function getSalesMonthGroup(sale: SalesItem): { key: string; label: string } {
+  const date = new Date(sale.date);
+  if (Number.isNaN(date.getTime())) {
+    return { key: 'undated', label: 'Undated Sales' };
+  }
+
+  return {
+    key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+    label: date.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
+  };
+}
 
 export default function SalesTracking() {
   const [invoices, setInvoices] = useState<BatikInvoice[]>([]);
@@ -48,21 +87,21 @@ export default function SalesTracking() {
   // Compile all individual fabric item sales dynamically from all non-cancelled invoices
   const activeInvoices = invoices.filter(inv => inv.status === 'paid' || inv.status === 'pending');
   
-  const salesItemsList: {
-    id: string;
-    invoiceId: string;
-    customerName: string;
-    date: string;
-    fabricType: string;
-    patternName: string;
-    quantityMeters: number;
-    pricePerMeter: number;
-    itemTotal: number;
-    status: string;
-  }[] = [];
+  const salesItemsList: SalesItem[] = [];
 
   activeInvoices.forEach(inv => {
+    const invoiceLineSubtotal = inv.items.reduce((sum, item) => {
+      return sum + (item.total || item.quantity_meters * item.price_per_meter);
+    }, 0);
+    const invoiceGrandTotal = typeof inv.total === 'number' ? inv.total : invoiceLineSubtotal;
+
     inv.items.forEach(item => {
+      const itemCost = item.quantity_meters * COST_PER_METER;
+      const rawItemTotal = item.total || item.quantity_meters * item.price_per_meter;
+      const itemTotal = invoiceLineSubtotal > 0
+        ? invoiceGrandTotal * (rawItemTotal / invoiceLineSubtotal)
+        : rawItemTotal;
+
       salesItemsList.push({
         id: item.id,
         invoiceId: inv.id,
@@ -72,7 +111,9 @@ export default function SalesTracking() {
         patternName: item.pattern_name,
         quantityMeters: item.quantity_meters,
         pricePerMeter: item.price_per_meter,
-        itemTotal: item.total,
+        itemTotal,
+        itemCost,
+        netProfit: itemTotal - itemCost,
         status: inv.status
       });
     });
@@ -97,14 +138,33 @@ export default function SalesTracking() {
     return true;
   });
 
-  // Calculate dynamic Profit KPIs
-  const COST_PER_METER = 25;
-  const MONTHLY_PROFIT_GOAL = 15000;
-
   const totalMetersSold = filteredSales.reduce((sum, s) => sum + s.quantityMeters, 0);
   const totalRevenue = filteredSales.reduce((sum, s) => sum + s.itemTotal, 0);
-  const totalCost = totalMetersSold * COST_PER_METER;
-  const netProfit = totalRevenue - totalCost;
+  const netProfit = filteredSales.reduce((sum, s) => sum + s.netProfit, 0);
+
+  const monthlySalesGroups = useMemo<MonthlySalesGroup[]>(() => {
+    const groups = new Map<string, MonthlySalesGroup>();
+
+    filteredSales.forEach(sale => {
+      const { key, label } = getSalesMonthGroup(sale);
+      const group = groups.get(key) || {
+        key,
+        label,
+        totalSales: 0,
+        totalMeters: 0,
+        netProfit: 0,
+        sales: []
+      };
+
+      group.totalSales += sale.itemTotal;
+      group.totalMeters += sale.quantityMeters;
+      group.netProfit += sale.netProfit;
+      group.sales.push(sale);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+  }, [filteredSales]);
 
   // Progress calculations
   const profitProgress = Math.min(100, Math.max(0, (netProfit / MONTHLY_PROFIT_GOAL) * 100));
@@ -125,9 +185,7 @@ export default function SalesTracking() {
   // Populate from database
   salesItemsList.forEach(sale => {
     if (dailyGroups[sale.date] !== undefined) {
-      const saleCost = sale.quantityMeters * COST_PER_METER;
-      const saleProfit = sale.itemTotal - saleCost;
-      dailyGroups[sale.date] += saleProfit;
+      dailyGroups[sale.date] += sale.netProfit;
     }
   });
 
@@ -179,7 +237,7 @@ export default function SalesTracking() {
       <div className="screenshot-card" style={{ marginBottom: 28, position: 'relative', overflow: 'hidden' }}>
         <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 24 }}>
           <div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Net profit calculated after standard production cost (RM{COST_PER_METER}/m).</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Total net profit from each customer sale after deducting RM{COST_PER_METER}/m production cost.</p>
             
             <div style={{ marginTop: 24 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
@@ -284,7 +342,7 @@ export default function SalesTracking() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div className="card-title-lg" style={{ fontSize: 16, marginBottom: 2 }}>Physical Dispatch Sales Log</div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Granular fabric ledger showing sold meters, unit rates, and pricing category.</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Granular fabric ledger showing sold meters, sales value, and per-customer net profit.</p>
           </div>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -313,47 +371,73 @@ export default function SalesTracking() {
                 <th>Batik Fabric Type</th>
                 <th>Meters Sold</th>
                 <th>Unit Rate</th>
-                <th>Total Value</th>
+                <th>Grand Total Share</th>
+                <th>Net Profit</th>
                 <th>Tier Classification</th>
               </tr>
             </thead>
             <tbody>
-              {filteredSales.length === 0 ? (
+              {monthlySalesGroups.length === 0 ? (
                 <tr>
                   <td colSpan={9} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>No sales matching current criteria.</td>
                 </tr>
               ) : (
-                filteredSales.map(sale => {
-                  const isWholesale = sale.quantityMeters >= 100;
-                  return (
-                    <tr key={sale.id}>
-                      <td style={{ fontWeight: 600 }}>{sale.date}</td>
-                      <td style={{ fontFamily: 'var(--font-display)', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{sale.invoiceId}</td>
-                      <td style={{ fontWeight: 600 }}>{sale.customerName}</td>
-                      <td className="text-secondary">{sale.fabricType}</td>
-                      <td style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>{sale.quantityMeters.toFixed(1)} m</td>
-                      <td className="text-secondary" style={{ fontFamily: 'var(--font-display)' }}>RM {sale.pricePerMeter.toFixed(2)}</td>
-                      <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>RM {sale.itemTotal.toFixed(2)}</td>
-                      <td>
-                        <span 
-                          style={{ 
-                            fontSize: 11, 
-                            fontWeight: 'bold', 
-                            padding: '4px 12px', 
-                            borderRadius: 20,
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            backdropFilter: 'blur(8px)',
-                            WebkitBackdropFilter: 'blur(8px)',
-                            color: 'rgba(255, 255, 255, 0.75)',
-                            border: '1px solid rgba(255, 255, 255, 0.1)'
-                          }}
-                        >
-                          {isWholesale ? 'Wholesale' : 'Retail'}
-                        </span>
+                monthlySalesGroups.map(group => (
+                  <React.Fragment key={group.key}>
+                    <tr>
+                      <td colSpan={9} style={{ padding: '18px 0 10px', borderBottom: 'none' }}>
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 16,
+                          padding: '11px 16px',
+                          background: 'rgba(255, 255, 255, 0.035)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: 0,
+                          color: 'var(--text-primary)'
+                        }}>
+                          <span style={{ fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 13 }}>{group.label}</span>
+                          <span className="action-pill-btn" style={{ cursor: 'default', marginRight: 12 }}>
+                            RM {group.netProfit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
                       </td>
                     </tr>
-                  );
-                })
+                    {group.sales.map(sale => {
+                      const isWholesale = sale.quantityMeters >= 100;
+                      return (
+                        <tr key={sale.id}>
+                          <td style={{ fontWeight: 600 }}>{sale.date}</td>
+                          <td style={{ fontFamily: 'var(--font-display)', fontWeight: 'bold', color: 'var(--accent-cyan)' }}>{sale.invoiceId}</td>
+                          <td style={{ fontWeight: 600 }}>{sale.customerName}</td>
+                          <td className="text-secondary">{sale.fabricType}</td>
+                          <td style={{ fontWeight: 700, fontFamily: 'var(--font-display)' }}>{sale.quantityMeters.toFixed(1)} m</td>
+                          <td className="text-secondary" style={{ fontFamily: 'var(--font-display)' }}>RM {sale.pricePerMeter.toFixed(2)}</td>
+                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>RM {sale.itemTotal.toFixed(2)}</td>
+                          <td style={{ fontWeight: 700, color: sale.netProfit >= 0 ? 'var(--accent-green)' : 'var(--accent-coral)' }}>RM {sale.netProfit.toFixed(2)}</td>
+                          <td>
+                            <span 
+                              style={{ 
+                                fontSize: 11, 
+                                fontWeight: 'bold', 
+                                padding: '4px 12px', 
+                                borderRadius: 20,
+                                background: 'rgba(255, 255, 255, 0.05)',
+                                backdropFilter: 'blur(8px)',
+                                WebkitBackdropFilter: 'blur(8px)',
+                                color: 'rgba(255, 255, 255, 0.75)',
+                                border: '1px solid rgba(255, 255, 255, 0.1)'
+                              }}
+                            >
+                              {isWholesale ? 'Wholesale' : 'Retail'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </React.Fragment>
+                ))
               )}
             </tbody>
           </table>

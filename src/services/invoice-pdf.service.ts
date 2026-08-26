@@ -17,6 +17,7 @@ function prepareInvoiceData(invoice: BatikInvoice) {
   const documentId = isReceipt ? invoice.id.replace(/^INV-/, 'REC-') : invoice.id;
   const subtotalStr = (invoice.subtotal || 0).toFixed(2);
   const discountStr = (invoice.discount_amount || 0).toFixed(2);
+  const shippingStr = (invoice.shipping_cost || 0).toFixed(2);
   const totalStr = (invoice.total || 0).toFixed(2);
   const dateStr = new Date(invoice.created_at).toLocaleDateString('en-MY', {
     year: 'numeric', month: 'long', day: 'numeric'
@@ -38,6 +39,7 @@ function prepareInvoiceData(invoice: BatikInvoice) {
     statusStr,
     hasDiscount,
     discountLabel,
+    shippingStr,
   };
 }
 
@@ -252,6 +254,11 @@ function buildNormalThemeHtml(invoice: BatikInvoice): string {
           <span class="sum-value">RM ${d.subtotalStr}</span>
         </div>
         ${discountRowHtml}
+        ${(invoice.shipping_cost || 0) > 0 ? `
+        <div class="summary-line">
+          <span class="sum-label" style="color: #a9a49f;">Shipping:</span>
+          <span class="sum-value">RM ${d.shippingStr}</span>
+        </div>` : ''}
         <div class="summary-line grand-total">
           <span class="sum-label grand">Total ${d.isReceipt ? 'Paid' : 'Due'}:</span>
           <span class="sum-value grand">RM ${d.totalStr}</span>
@@ -576,6 +583,11 @@ function buildWhiteThemeHtml(invoice: BatikInvoice): string {
             <td class="summary-val">RM ${d.subtotalStr}</td>
           </tr>
           ${discountRowHtml}
+          ${(invoice.shipping_cost || 0) > 0 ? `
+          <tr class="summary-row">
+            <td class="summary-label">Shipping</td>
+            <td class="summary-val">RM ${d.shippingStr}</td>
+          </tr>` : ''}
           <tr class="grand-row">
             <td class="grand-label">Total ${d.isReceipt ? 'Paid' : 'Due'}</td>
             <td class="grand-val">RM ${d.totalStr}</td>

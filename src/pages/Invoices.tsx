@@ -16,7 +16,8 @@ import {
   Mail,
   Layers,
   Edit2,
-  CheckCircle
+  CheckCircle,
+  Truck
 } from 'lucide-react';
 import { BatikInvoice, BatikInvoiceItem } from '../db/database';
 
@@ -31,6 +32,27 @@ const STATUS_COLORS: Record<string, string> = {
 
 // Available pre-registered fabrics for selection
 const FABRIC_CATALOG = ['Dubai Cotton', 'Cotton Viscose'];
+
+interface MonthlyInvoiceGroup {
+  key: string;
+  label: string;
+  invoiceCount: number;
+  receiptCount: number;
+  total: number;
+  invoices: BatikInvoice[];
+}
+
+function getInvoiceMonthGroup(invoice: BatikInvoice): { key: string; label: string } {
+  const date = new Date(invoice.created_at);
+  if (Number.isNaN(date.getTime())) {
+    return { key: 'undated', label: 'Undated Documents' };
+  }
+
+  return {
+    key: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+    label: date.toLocaleDateString('en-MY', { month: 'long', year: 'numeric' })
+  };
+}
 
 export default function Invoices() {
   const [invoices, setInvoices] = useState<BatikInvoice[]>([]);
@@ -138,6 +160,36 @@ export default function Invoices() {
   };
 
   const filtered = filter === 'all' ? invoices : invoices.filter(i => i.status === filter);
+  const monthlyInvoiceGroups = useMemo<MonthlyInvoiceGroup[]>(() => {
+    const groups = new Map<string, MonthlyInvoiceGroup>();
+    const sortedInvoices = [...filtered].sort((a, b) => {
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    sortedInvoices.forEach(inv => {
+      const { key, label } = getInvoiceMonthGroup(inv);
+      const group = groups.get(key) || {
+        key,
+        label,
+        invoiceCount: 0,
+        receiptCount: 0,
+        total: 0,
+        invoices: []
+      };
+
+      if (inv.status === 'paid') {
+        group.receiptCount += 1;
+      } else {
+        group.invoiceCount += 1;
+      }
+
+      group.total += inv.total || 0;
+      group.invoices.push(inv);
+      groups.set(key, group);
+    });
+
+    return Array.from(groups.values());
+  }, [filtered]);
   
   // Calculate summary values
   const activeInvoices = invoices.filter(i => i.status === 'paid' || i.status === 'pending');
@@ -351,108 +403,132 @@ export default function Invoices() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {monthlyInvoiceGroups.length === 0 ? (
                   <tr>
                     <td colSpan={9} style={{ textAlign: 'center', padding: '30px 0', color: 'var(--text-muted)' }}>No invoices found matching current filter.</td>
                   </tr>
                 ) : (
-                  filtered.map(inv => (
-                    <tr key={inv.id}>
-                      <td style={{ fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--accent-cyan)' }}>
-                        {inv.status === 'paid' ? inv.id.replace(/^INV-/, 'REC-') : inv.id}
-                      </td>
-                      <td style={{ fontWeight: 600 }}>{inv.customer_name}</td>
-                      <td className="text-secondary" style={{ fontFamily: 'var(--font-display)', fontSize: 12.5 }}>{inv.customer_phone}</td>
-                      <td className="text-secondary" style={{ fontSize: 12.5 }}>{new Date(inv.created_at).toLocaleDateString('en-MY')}</td>
-                      <td className="text-secondary">RM {inv.subtotal.toFixed(2)}</td>
-                      <td className="text-secondary" style={{ color: inv.discount_amount > 0 ? 'var(--accent-amber)' : 'inherit' }}>
-                        {inv.discount_amount > 0 ? `-RM ${inv.discount_amount.toFixed(2)}` : '—'}
-                      </td>
-                      <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>RM {inv.total.toFixed(2)}</td>
-                      <td>
-                        <span style={{ 
-                          fontWeight: 600, 
-                          color: 'var(--text-primary)', 
-                          textTransform: 'capitalize',
-                          padding: '5px 12px',
-                          borderRadius: '9999px',
-                          fontSize: 11.5,
-                          background: 'rgba(255, 255, 255, 0.03)',
-                          border: '1px solid rgba(255, 255, 255, 0.08)',
-                          backdropFilter: 'blur(12px)',
-                          WebkitBackdropFilter: 'blur(12px)',
-                          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          letterSpacing: '0.01em'
-                        }}>
-                          {inv.status === 'paid' ? 'Receipt' : inv.status === 'pending' ? 'Invoice' : inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
-                          {inv.status !== 'paid' && inv.status !== 'cancelled' && (
-                            <button 
-                              className="search-circle" 
-                              style={{ 
-                                width: 28, height: 28, 
-                                background: 'rgba(255, 255, 255, 0.03)',
-                                border: '1px solid rgba(255, 255, 255, 0.08)',
-                                backdropFilter: 'blur(8px)',
-                                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
-                              }} 
-                              title="Mark as Paid"
-                              onClick={() => handleMarkAsPaid(inv)}
-                            >
-                              <CheckCircle size={12} style={{ color: 'var(--accent-green)' }} />
-                            </button>
-                          )}
-                          <button 
-                            className="search-circle" 
-                            style={{ 
-                              width: 28, height: 28, 
+                  monthlyInvoiceGroups.map(group => (
+                    <React.Fragment key={group.key}>
+                      <tr>
+                        <td colSpan={9} style={{ padding: '18px 0 10px', borderBottom: 'none' }}>
+                          <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: 16,
+                            padding: '11px 16px',
+                            background: 'rgba(255, 255, 255, 0.035)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            borderRadius: 0,
+                            color: 'var(--text-primary)'
+                          }}>
+                            <span style={{ fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 13 }}>{group.label}</span>
+                            <span className="action-pill-btn" style={{ cursor: 'default', marginRight: 12 }}>
+                              RM {group.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                      {group.invoices.map(inv => (
+                        <tr key={inv.id}>
+                          <td style={{ fontWeight: 700, fontFamily: 'var(--font-display)', fontSize: 13, color: 'var(--accent-cyan)' }}>
+                            {inv.status === 'paid' ? inv.id.replace(/^INV-/, 'REC-') : inv.id}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{inv.customer_name}</td>
+                          <td className="text-secondary" style={{ fontFamily: 'var(--font-display)', fontSize: 12.5 }}>{inv.customer_phone}</td>
+                          <td className="text-secondary" style={{ fontSize: 12.5 }}>{new Date(inv.created_at).toLocaleDateString('en-MY')}</td>
+                          <td className="text-secondary">RM {inv.subtotal.toFixed(2)}</td>
+                          <td className="text-secondary" style={{ color: inv.discount_amount > 0 ? 'var(--accent-amber)' : 'inherit' }}>
+                            {inv.discount_amount > 0 ? `-RM ${inv.discount_amount.toFixed(2)}` : '—'}
+                          </td>
+                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>RM {inv.total.toFixed(2)}</td>
+                          <td>
+                            <span style={{ 
+                              fontWeight: 600, 
+                              color: 'var(--text-primary)', 
+                              textTransform: 'capitalize',
+                              padding: '5px 12px',
+                              borderRadius: '9999px',
+                              fontSize: 11.5,
                               background: 'rgba(255, 255, 255, 0.03)',
                               border: '1px solid rgba(255, 255, 255, 0.08)',
-                              backdropFilter: 'blur(8px)',
-                              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
-                            }} 
-                            title="Edit Document"
-                            onClick={() => { setEditingInvoice(inv); setShowForm(true); }}
-                          >
-                            <Edit2 size={12} style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                          <button 
-                            className="search-circle" 
-                            style={{ 
-                              width: 28, height: 28, 
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              border: '1px solid rgba(255, 255, 255, 0.08)',
-                              backdropFilter: 'blur(8px)',
-                              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
-                            }} 
-                            title="Print / Open Branded PDF"
-                            onClick={() => handlePrintPdf(inv.id)}
-                          >
-                            <Printer size={12} style={{ color: 'var(--text-primary)' }} />
-                          </button>
-                          <button 
-                            className="search-circle" 
-                            style={{ 
-                              width: 28, height: 28, 
-                              background: 'rgba(255, 255, 255, 0.03)',
-                              border: '1px solid rgba(255, 255, 255, 0.08)',
-                              backdropFilter: 'blur(8px)',
-                              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
-                            }} 
-                            title="Delete Invoice"
-                            onClick={() => handleDeleteInvoice(inv.id)}
-                          >
-                            <Trash2 size={12} style={{ color: 'var(--text-muted)' }} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                              backdropFilter: 'blur(12px)',
+                              WebkitBackdropFilter: 'blur(12px)',
+                              boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              letterSpacing: '0.01em'
+                            }}>
+                              {inv.status === 'paid' ? 'Receipt' : inv.status === 'pending' ? 'Invoice' : inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+                              {inv.status !== 'paid' && inv.status !== 'cancelled' && (
+                                <button 
+                                  className="search-circle" 
+                                  style={{ 
+                                    width: 28, height: 28, 
+                                    background: 'rgba(255, 255, 255, 0.03)',
+                                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                                    backdropFilter: 'blur(8px)',
+                                    boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
+                                  }} 
+                                  title="Mark as Paid"
+                                  onClick={() => handleMarkAsPaid(inv)}
+                                >
+                                  <CheckCircle size={12} style={{ color: 'var(--accent-green)' }} />
+                                </button>
+                              )}
+                              <button 
+                                className="search-circle" 
+                                style={{ 
+                                  width: 28, height: 28, 
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  backdropFilter: 'blur(8px)',
+                                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
+                                }} 
+                                title="Edit Document"
+                                onClick={() => { setEditingInvoice(inv); setShowForm(true); }}
+                              >
+                                <Edit2 size={12} style={{ color: 'var(--text-muted)' }} />
+                              </button>
+                              <button 
+                                className="search-circle" 
+                                style={{ 
+                                  width: 28, height: 28, 
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  backdropFilter: 'blur(8px)',
+                                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
+                                }} 
+                                title="Print / Open Branded PDF"
+                                onClick={() => handlePrintPdf(inv.id)}
+                              >
+                                <Printer size={12} style={{ color: 'var(--text-primary)' }} />
+                              </button>
+                              <button 
+                                className="search-circle" 
+                                style={{ 
+                                  width: 28, height: 28, 
+                                  background: 'rgba(255, 255, 255, 0.03)',
+                                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                                  backdropFilter: 'blur(8px)',
+                                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.03)'
+                                }} 
+                                title="Delete Invoice"
+                                onClick={() => handleDeleteInvoice(inv.id)}
+                              >
+                                <Trash2 size={12} style={{ color: 'var(--text-muted)' }} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
                   ))
                 )}
               </tbody>
@@ -487,6 +563,7 @@ function NewInvoiceForm({ onClose, onSuccess, showToast, initialInvoice, existin
     initialInvoice?.discount_type || 'none'
   );
   const [discountValue, setDiscountValue] = useState(initialInvoice?.discount_value || 0);
+  const [shippingCost, setShippingCost] = useState(initialInvoice?.shipping_cost || 0);
 
   // Line items state
   const [items, setItems] = useState<Omit<BatikInvoiceItem, 'id' | 'total'>[]>(
@@ -586,7 +663,7 @@ function NewInvoiceForm({ onClose, onSuccess, showToast, initialInvoice, existin
     discountAmount = discountValue;
   }
   discountAmount = Math.min(discountAmount, subtotal); // Prevent negative grand totals
-  const grandTotal = subtotal - discountAmount;
+  const grandTotal = subtotal - discountAmount + shippingCost;
 
   const handleSubmit = async () => {
     if (!customerName || !customerPhone) {
@@ -619,6 +696,7 @@ function NewInvoiceForm({ onClose, onSuccess, showToast, initialInvoice, existin
         discount_type: discountType,
         discount_value: discountValue,
         discount_amount: discountAmount,
+        shipping_cost: shippingCost,
         total: grandTotal,
         status,
         created_at: new Date().toISOString()
@@ -892,6 +970,21 @@ function NewInvoiceForm({ onClose, onSuccess, showToast, initialInvoice, existin
             </div>
           </div>
           
+          <div className="form-group" style={{ marginTop: 12 }}>
+            <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Truck size={12} />
+              Shipping Cost
+            </label>
+            <input 
+              className="screenshot-input" 
+              type="number" 
+              style={{ width: '100%', padding: '8px 12px', fontSize: 12 }}
+              value={shippingCost || ''} 
+              onChange={e => setShippingCost(parseFloat(e.target.value) || 0)}
+              placeholder="e.g. 15.00" 
+            />
+          </div>
+          
           <div style={{ fontSize: 10, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.02)', padding: '10px 14px', borderRadius: 8, lineHeight: 1.4 }}>
             <strong>Tier Pricing Rules Applied:</strong> Quantity discounts are checked per fabric row. &lt;100m is RM 40, &ge;100m is RM 38, &ge;500m is RM 37, and &ge;1000m is RM 35.
           </div>
@@ -906,6 +999,12 @@ function NewInvoiceForm({ onClose, onSuccess, showToast, initialInvoice, existin
             <div style={{ display: 'flex', justifyContent: 'space-between', width: '70%', fontSize: 12, color: 'var(--accent-amber)' }}>
               <span>Deductions:</span>
               <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>- RM {discountAmount.toFixed(2)}</span>
+            </div>
+          )}
+          {shippingCost > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '70%', fontSize: 12, color: 'var(--text-muted)' }}>
+              <span>Shipping:</span>
+              <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>RM {shippingCost.toFixed(2)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', width: '70%', fontSize: 14, fontWeight: 'bold', borderTop: '1px solid rgba(255, 255, 255, 0.12)', paddingTop: 10, marginTop: 4 }}>
